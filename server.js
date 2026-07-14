@@ -1,68 +1,133 @@
+require('dotenv').config();
 const express = require('express');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 const app = express();
 app.use(express.json());
-const swaggerUi = require('swagger-ui-express');
-const swaggerDocument = require('./openapi.json');
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
 
-let tasks = [
-  { id: 1, title: "Buy milk", done: false },
-  { id: 2, title: "Walk dog", done: true },
-  { id: 3, title: "Write code", done: false }
-];
+let users = [];
+let nextUserId = 1;
 
-app.post('/tasks', (req, res) => {
-  const { title } = req.body;
-  if (!title || title.trim() === '') {
-    return res.status(400).json({ error: "Title is required" });
-  }
-  const newTask = {
-    id: tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1,
-    title,
-    done: false
-  };
-  tasks.push(newTask);
-  res.status(201).json(newTask);
-});
-
-app.get('/tasks/:id', (req, res) => {
-  const task = tasks.find(t => t.id === parseInt(req.params.id));
-  if (!task) {
-    return res.status(404).json({ error: `Task ${req.params.id} not found` });
-  }
-  res.json(task);
-});
 app.get('/', (req, res) => {
-  res.json({ name: "Task API", version: "1.0", endpoints: ["/tasks"] });
+  res.json({
+    name: 'Task API with Auth',
+    version: '1.0',
+    endpoints: ['/register', '/login', '/profile']
+  });
 });
 
 app.get('/health', (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: 'ok' });
 });
 
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
+app.post('/register', async (req, res) => {
+  const { email, password, role } = req.body;
 
-app.put('/tasks/:id', (req, res) => {
-  const task = tasks.find(t => t.id === parseInt(req.params.id));
-  if (!task) {
-    return res.status(404).json({ error: `Task ${req.params.id} not found` });
+  if (!email || email.trim() === '') {
+    return res.status(400).json({ error: 'Email is required' });
   }
-  const { title, done } = req.body;
-  if (title !== undefined) {
-    if (title.trim() === '') {
-      return res.status(400).json({ error: "Title cannot be empty" });
-    }
-    task.title = title;
+
+  if (!password || password.trim() === '') {
+    return res.status(400).json({ error: 'Password is required' });
   }
-  if (done !== undefined) task.done = done;
-  res.json(task);
+
+  const existingUser = users.find(u => u.email === email);
+  if (existingUser) {
+    return res.status(400).json({ error: 'Email already registered' });
+  }
+
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  const newUser = {
+    id: nextUserId++,
+    email,
+    password: hashedPassword,
+    role: role || 'user'
+  };
+
+  users.push(newUser);
+
+  res.status(201).json({
+    id: newUser.id,
+    email: newUser.email,
+    role: newUser.role
+  });
 });
 
-app.delete('/tasks/:id', (req, res) => {
-  const index = tasks.findIndex(t => t.id === parseInt(req.params.id));
-  if (index === -1) {
-    return res.status(404).json({ error: `Task ${req.params.id} not found` });
+app.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || email.trim() === '') {
+    return res.status(400).json({ error: 'Email is required' });
   }
-  tasks.splice(index, 1);
-  res.status(204).send();
+
+  if (!password || password.trim() === '') {
+    return res.status(400).json({ error: 'Password is required' });
+  }
+
+  const user = users.find(u => u.email === email);
+  if (!user) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const passwordMatches = await bcrypt.compare(password, user.password);
+  if (!passwordMatches) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+
+  const token = jwt.sign(
+    { id: user.id, email: user.email, role: user.role },
+    process.env.JWT_SECRET,
+    { expiresIn: '1h' }
+  );
+
+  res.json({ token });
+});
+
+function requireAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader) {
+    return res.status(401).json({ error: 'Missing Authorization header' });
+  }
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || parts[0] !== 'Bearer') {
+    return res.status(401).json({ error: 'Invalid Authorization format' });
+  }
+
+  const token = parts[1];
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.user = decoded;
+    next();
+  } catch (err) {
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+}
+
+function requireAdmin(req, res, next) {
+  if (req.user.role !== 'admin') {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  next();
+}
+
+app.get('/profile', requireAuth, (req, res) => {
+  res.json({
+    message: 'You are logged in',
+    user: req.user
+  });
+});
+
+app.get('/admin', requireAuth, requireAdmin, (req, res) => {
+  res.json({
+    message: 'Welcome, admin'
+  });
+});
+
+app.listen(process.env.PORT, () => {
+  console.log(`Server running on http://localhost:${process.env.PORT}`);
 });
