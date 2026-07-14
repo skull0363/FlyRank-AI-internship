@@ -1,0 +1,15 @@
+{
+  "openapi": "3.0.0",
+  "info": { "title": "Task API", "version": "1.0" },
+  "paths": {
+    "/tasks": {
+      "get": { "summary": "List all tasks", "responses": { "200": { "description": "OK" } } },
+      "post": { "summary": "Create a task", "responses": { "201": { "description": "Created" }, "400": { "description": "Bad Request" } } }
+    },
+    "/tasks/{id}": {
+      "get": { "summary": "Get one task", "parameters": [{ "name": "id", "in": "path", "required": true }], "responses": { "200": { "description": "OK" }, "404": { "description": "Not Found" } } },
+      "put": { "summary": "Update a task", "parameters": [{ "name": "id", "in": "path", "required": true }], "responses": { "200": { "description": "OK" }, "400": { "description": "Bad Request" }, "404": { "description": "Not Found" } } },
+      "delete": { "summary": "Delete a task", "parameters": [{ "name": "id", "in": "path", "required": true }], "responses": { "204": { "description": "No Content" }, "404": { "description": "Not Found" } } }
+    }
+  }
+}

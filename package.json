@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/skull0363/FlyRank-AI-internship#readme",
   "dependencies": {
-    "express": "^5.2.1"
+    "express": "^5.2.1",
+    "swagger-ui-express": "^5.0.1"
   }
 }
