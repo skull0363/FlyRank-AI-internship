@@ -18,7 +18,9 @@
   },
   "homepage": "https://github.com/skull0363/FlyRank-AI-internship#readme",
   "dependencies": {
+    "axios": "^1.18.1",
     "bcryptjs": "^3.0.3",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "jsonwebtoken": "^9.0.3",
